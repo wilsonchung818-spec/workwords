@@ -1,0 +1,16 @@
+{
+  "id": "./",
+  "name": "WorkWords Business English Dictionary",
+  "short_name": "WorkWords",
+  "description": "A personal business English dictionary and wordbook.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f8f7f3",
+  "theme_color": "#172b4d",
+  "icons": [
+    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

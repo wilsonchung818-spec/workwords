@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#172b4d">
+  <meta name="description" content="Look up business English words, learn natural examples and collocations, and export your personal wordbook.">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./styles.css?v=1">
+  <title>WorkWords · Business English Dictionary</title>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="./"><span class="brand-icon">W</span><span>WorkWords<small>BUSINESS ENGLISH</small></span></a>
+    <button id="install" class="install" hidden>Install app</button>
+  </header>
+  <main>
+    <section class="search-area">
+      <p class="eyebrow">A practical dictionary for work</p>
+      <h1>Find the words<br>behind your work.</h1>
+      <form id="search-form" class="search-form">
+        <label class="sr-only" for="query">Search an English word</label>
+        <input id="query" name="query" type="search" placeholder="Search a business word…" autocomplete="off" required>
+        <button aria-label="Search" type="submit">Search <span aria-hidden="true">→</span></button>
+      </form>
+      <p class="search-note">English definition first · clear examples · useful phrases</p>
+    </section>
+    <section id="result" class="result" aria-live="polite"></section>
+    <section id="saved" class="saved-section">
+      <div class="section-heading"><div><p class="eyebrow">Your collection</p><h2>My wordbook <span id="word-count">0</span></h2></div><button id="export" class="outline-button" disabled>Export</button></div>
+      <div id="saved-list" class="saved-list"><p class="empty">Your saved words will appear here.</p></div>
+      <div id="print-sheet" class="print-sheet"></div>
+    </section>
+  </main>
+  <nav class="bottom-nav" aria-label="Main navigation"><a class="active" href="#top" data-view="search">⌕ <span>Search</span></a><a href="#saved" data-view="saved">▤ <span>My Words</span></a><button id="reminder">◷ <span>Weekly review</span></button></nav>
+  <dialog id="reminder-dialog"><form method="dialog" class="dialog-content"><button class="dialog-close" aria-label="Close">×</button><p class="eyebrow">Keep your words active</p><h2>Weekly reminder</h2><p>Choose a day to review your saved wordbook on this phone.</p><label for="reminder-day">Review day</label><select id="reminder-day"><option>Monday</option><option>Tuesday</option><option>Wednesday</option><option>Thursday</option><option>Friday</option><option>Saturday</option><option>Sunday</option></select><button id="save-reminder" class="primary-button" value="save">Save reminder</button><small>Reminder preference is saved locally. Browser notifications require permission.</small></form></dialog>
+  <dialog id="export-dialog"><form method="dialog" class="dialog-content"><button class="dialog-close" aria-label="Close">×</button><p class="eyebrow">Take your learning with you</p><h2>Export wordbook</h2><p>Markdown is structured for AI agents. A4 PDF is ready to print or read.</p><button id="export-md" class="primary-button" value="md">Download Markdown (.md)</button><button id="export-pdf" class="outline-button" value="pdf">Print / save as A4 PDF</button></form></dialog>
+  <footer>WorkWords · Words you meet at work, ready to learn.</footer>
+  <script src="./app.js?v=1"></script>
+</body>
+</html>
