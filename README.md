@@ -2,6 +2,8 @@
 
 Standalone mobile-first business English dictionary PWA in its own GitHub repository and Pages site. It has a separate service worker scope and local storage from BA Speak.
 
+Dictionary entries use a learner-dictionary layout with UK/US pronunciation, parts of speech, numbered meanings with examples, related words, and common phrases. The layout takes cues from familiar learner dictionaries; definitions are fetched from DictionaryAPI.dev and are not copied from Cambridge Dictionary.
+
 ## Features
 
 - Spelling suggestions while typing, with keyboard selection

@@ -99,12 +99,30 @@
   function renderResult(entry) {
     current = entry;
     const saved = words.some(item => item.word.toLowerCase() === entry.word.toLowerCase());
-    const audio=entry.audioUrl?`<audio id="word-audio" preload="none" src="${escapeHtml(entry.audioUrl)}"></audio>`:'';
-    const senses=(entry.meanings||[]).map(group=>`<div class="sense-group"><h4>${escapeHtml(group.pos)}</h4><ol>${group.definitions.map(def=>`<li>${escapeHtml(def)}</li>`).join('')}</ol></div>`).join('');
-    result.innerHTML = `<div class="word-head"><div><h2 class="word-title">${escapeHtml(entry.word)}</h2><div class="pronunciation">${escapeHtml(entry.phonetic || '')}</div><span class="pos">${escapeHtml((entry.partsOfSpeech||[entry.pos||'word']).join(' · '))}</span></div><div class="word-actions"><button class="listen-button" id="listen-word" aria-label="Listen to ${escapeHtml(entry.word)}">🔊 <span>Listen</span></button><button class="save-button ${saved?'saved':''}" id="save-word">${saved?'✓ Saved':'＋ Save word'}</button></div></div>${audio}<section class="content-section simple-definition"><h3>Simple English</h3><p class="definition">${escapeHtml(entry.definition)}</p></section><div class="language-row"><span>Explanation language</span><div class="language-toggle"><button class="active" data-language="en">English</button><button data-language="zh">中文</button></div></div><div id="translation" class="translation" hidden></div><section class="content-section"><h3>All meanings by part of speech</h3>${senses||`<p>${escapeHtml(entry.definition)}</p>`}</section><section class="content-section"><h3>Natural examples</h3>${entry.examples?.length?`<ul class="examples">${entry.examples.map(line=>`<li>${escapeHtml(line)}</li>`).join('')}</ul>`:'<p class="message">No examples are available for this word yet.</p>'}</section><section class="content-section"><h3>Common prepositions & phrases</h3>${entry.phrases.length?`<ul class="phrases">${entry.phrases.map(([phrase,note])=>`<li>${escapeHtml(phrase)}<small>${escapeHtml(note)}</small></li>`).join('')}</ul>`:'<p class="message">No verified phrase combinations are listed for this word yet.</p>'}</section>`;
+    const pronunciations=(entry.pronunciations?.length?entry.pronunciations:[{region:'US',ipa:entry.phonetic,audio:entry.audioUrl}]).filter((item,index,list)=>item.ipa||item.audio).filter((item,index,list)=>list.findIndex(other=>other.region===item.region)===index);
+    const audio=pronunciations.map((item,index)=>item.audio?`<audio id="pron-audio-${index}" preload="none" src="${escapeHtml(item.audio)}"></audio>`:'').join('');
+    const senses=(entry.meanings||[]).map(group=>{
+      const definitions=group.senses||group.definitions||[];
+      const rendered=definitions.map((sense,index)=>{
+        const definition=typeof sense==='string'?sense:sense.definition;
+        const examples=typeof sense==='string'?[]:(sense.examples||[]);
+        const synonyms=typeof sense==='string'?[]:(sense.synonyms||[]);
+        return `<li class="sense-item"><p>${escapeHtml(definition)}</p>${examples.length?`<ul class="sense-examples">${examples.slice(0,3).map(example=>`<li>${escapeHtml(example)}</li>`).join('')}</ul>${examples.length>3?`<details class="more-examples"><summary>Show ${examples.length-3} more examples</summary><ul class="sense-examples">${examples.slice(3).map(example=>`<li>${escapeHtml(example)}</li>`).join('')}</ul></details>`:''}`:''}${synonyms.length?`<div class="sense-related"><span>Related:</span> ${synonyms.slice(0,6).map(word=>`<button type="button" data-related="${escapeHtml(word)}">${escapeHtml(word)}</button>`).join('')}</div>`:''}</li>`;
+      }).join('');
+      return `<section class="sense-group"><h3>${escapeHtml(group.pos)}</h3><ol>${rendered}</ol></section>`;
+    }).join('');
+    const related=[...new Set((entry.meanings||[]).flatMap(group=>(group.senses||[]).flatMap(sense=>typeof sense==='string'?[]:(sense.synonyms||[]))))].slice(0,12);
+    result.innerHTML = `<div class="word-head"><div><h2 class="word-title">${escapeHtml(entry.word)}</h2><span class="pos">${escapeHtml((entry.partsOfSpeech||[entry.pos||'word']).join(' · '))}</span></div><div class="word-actions"><button class="listen-button" id="listen-word" aria-label="Listen to ${escapeHtml(entry.word)}">🔊 <span>Listen</span></button><button class="save-button ${saved?'saved':''}" id="save-word">${saved?'✓ Saved':'＋ Save word'}</button></div></div><div class="pronunciation-list" aria-label="Pronunciation">${pronunciations.map((item,index)=>`<div class="pronunciation-item"><span class="pronunciation-region">${escapeHtml(item.region==='UK'?'UK':'US')}</span><span class="pronunciation-ipa">${escapeHtml(item.ipa||'')}</span><button type="button" class="pronunciation-play" data-pronounce="${index}" aria-label="Play ${escapeHtml(item.region==='UK'?'UK':'US')} pronunciation">🔊</button></div>`).join('')||`<div class="pronunciation-item"><span class="pronunciation-region">US</span><span class="pronunciation-ipa">${escapeHtml(entry.phonetic||'')}</span></div>`}</div>${audio}<section class="content-section simple-definition"><h3>Simple English</h3><p class="definition">${escapeHtml(entry.definition)}</p><div class="language-row"><span>Meaning</span><div class="language-toggle"><button class="active" data-language="en">English</button><button data-language="zh">中文</button></div></div><div id="translation" class="translation" hidden></div></section><section class="content-section meanings-section"><h3>Meanings & examples</h3>${senses||`<p class="message">${escapeHtml(entry.definition)}</p>`}</section>${related.length?`<section class="content-section"><h3>Related words</h3><div class="related-words">${related.map(word=>`<button type="button" data-related="${escapeHtml(word)}">${escapeHtml(word)} <span>→</span></button>`).join('')}</div></section>`:''}<section class="content-section"><h3>Common prepositions & phrases</h3>${entry.phrases.length?`<ul class="phrases">${entry.phrases.map(([phrase,note])=>`<li><strong>${escapeHtml(phrase)}</strong><small>${escapeHtml(note)}</small></li>`).join('')}</ul>`:'<p class="message">No verified phrase combinations are listed for this word yet.</p>'}</section>`;
     document.querySelector('#save-word').addEventListener('click', saveCurrent);
     document.querySelector('#listen-word').addEventListener('click',()=>speakEntry(entry));
+    result.querySelectorAll('[data-pronounce]').forEach(button=>button.addEventListener('click',()=>playPronunciation(entry,pronunciations[Number(button.dataset.pronounce)],Number(button.dataset.pronounce))));
+    result.querySelectorAll('[data-related]').forEach(button=>button.addEventListener('click',()=>lookup(button.dataset.related)));
     result.querySelectorAll('[data-language]').forEach(button=>button.addEventListener('click',()=>toggleLanguage(button.dataset.language,entry)));
+  }
+  function playPronunciation(entry,pronunciation,index){
+    const audio=document.querySelector(`#pron-audio-${index}`);
+    if(audio){audio.currentTime=0;audio.play().catch(()=>speakWithDeviceVoice(entry,null,pronunciation.region));return;}
+    speakWithDeviceVoice(entry,null,pronunciation.region);
   }
   function speakEntry(entry){
     const femaleVoice=('speechSynthesis'in window?speechSynthesis.getVoices():[]).find(voice=>/^en([-_]|$)/i.test(voice.lang)&&/(female|aria|jenny|samantha|zira|susan|hazel|libby|sonia|ava|karen|sara|michelle|june|google us english)/i.test(voice.name));
@@ -113,13 +131,14 @@
     if(audio){audio.currentTime=0;audio.play().catch(()=>speakWithDeviceVoice(entry));return;}
     speakWithDeviceVoice(entry);
   }
-  function speakWithDeviceVoice(entry,preferredVoice=null){
+  function speakWithDeviceVoice(entry,preferredVoice=null,region='US'){
     if(!('speechSynthesis'in window)){showToast('Audio playback is not available on this device.');return;}
     const utterance=new SpeechSynthesisUtterance(entry.word);
     const voices=speechSynthesis.getVoices();
     const female=voices.find(voice=>/^en([-_]|$)/i.test(voice.lang)&&/(female|aria|jenny|samantha|zira|susan|hazel|libby|sonia|ava|karen|sara|michelle|june)/i.test(voice.name));
-    utterance.voice=preferredVoice||female||voices.find(voice=>/^en-US/i.test(voice.lang))||voices.find(voice=>/^en/i.test(voice.lang))||null;
-    utterance.lang=utterance.voice?.lang||'en-US';
+    const regional=voices.find(voice=>region==='UK'?/^en-GB/i.test(voice.lang):/^en-US/i.test(voice.lang));
+    utterance.voice=preferredVoice||regional||female||voices.find(voice=>/^en/i.test(voice.lang))||null;
+    utterance.lang=utterance.voice?.lang||(region==='UK'?'en-GB':'en-US');
     utterance.rate=.88;utterance.pitch=1.08;speechSynthesis.cancel();speechSynthesis.speak(utterance);
   }
   function showToast(message){let toast=document.querySelector('#toast');if(!toast){toast=document.createElement('div');toast.id='toast';toast.className='toast';document.body.append(toast);}toast.textContent=message;toast.classList.add('visible');setTimeout(()=>toast.classList.remove('visible'),2200);}
@@ -147,8 +166,12 @@
       const prior=local||{};
       const simple=[...definitions].sort((a,b)=>a.definition.length-b.definition.length)[0]?.definition||'Definition unavailable.';
       const audio=raw.phonetics?.find(item=>item.audio&&/^https?:/.test(item.audio))?.audio||'';
-      const entry={word:raw.word||clean,phonetic:raw.phonetic||raw.phonetics?.find(item=>item.text)?.text||'',pos:definitions[0]?.pos||meanings[0]?.partOfSpeech||'word',partsOfSpeech:[...new Set(meanings.map(item=>item.partOfSpeech).filter(Boolean))],meanings:meanings.map(item=>({pos:item.partOfSpeech||'word',definitions:[...new Set((item.definitions||[]).map(def=>def.definition).filter(Boolean))]})).filter(item=>item.definitions.length),definition:simpleMeanings[clean]||plainDefinition(simple),examples:[...new Set(definitions.map(item=>item.example).filter(Boolean))].slice(0,3),phrases:phraseList(clean),audioUrl:audio,savedAt:prior.savedAt||'',reviewStage:prior.reviewStage??0,nextReviewAt:prior.nextReviewAt||'',reviewCount:prior.reviewCount||0,lastReviewedAt:prior.lastReviewedAt||''};
-      if(entry.examples.length<2){const curated=examplesByWord[clean]||[];entry.examples=[...new Set([...entry.examples,...curated])].slice(0,3);}
+      const pronunciations=(raw.phonetics||[]).filter(item=>item.text||item.audio).map(item=>{const source=item.audio||'';const region=/[_-](uk|gb)(?:[_\-.]|$)/i.test(source)?'UK':'US';return{ipa:item.text||'',audio:/^https?:/.test(source)?source:'',region};}).reduce((list,item)=>{const existing=list.find(pronunciation=>pronunciation.region===item.region);if(existing){existing.ipa||=item.ipa;existing.audio||=item.audio;}else list.push(item);return list;},[]);
+      const simpleEntry={word:raw.word||clean,phonetic:raw.phonetic||raw.phonetics?.find(item=>item.text)?.text||'',pos:definitions[0]?.pos||meanings[0]?.partOfSpeech||'word',partsOfSpeech:[...new Set(meanings.map(item=>item.partOfSpeech).filter(Boolean))],meanings:meanings.map(item=>({pos:item.partOfSpeech||'word',definitions:(item.definitions||[]).map(def=>def.definition).filter(Boolean),senses:(item.definitions||[]).filter(def=>def.definition).map(def=>({definition:def.definition,examples:def.example?[def.example]:[],synonyms:def.synonyms||[]}))})).filter(item=>item.senses.length),definition:simpleMeanings[clean]||plainDefinition(simple),examples:[...new Set(definitions.map(item=>item.example).filter(Boolean))].slice(0,3),phrases:phraseList(clean),audioUrl:audio,pronunciations,savedAt:prior.savedAt||'',reviewStage:prior.reviewStage??0,nextReviewAt:prior.nextReviewAt||'',reviewCount:prior.reviewCount||0,lastReviewedAt:prior.lastReviewedAt||''};
+      if(simpleEntry.examples.length<2){const curated=examplesByWord[clean]||[];simpleEntry.examples=[...new Set([...simpleEntry.examples,...curated])].slice(0,3);}
+      const firstSense=simpleEntry.meanings[0]?.senses[0];
+      if(firstSense&&simpleEntry.examples.length)firstSense.examples=[...new Set([...firstSense.examples,...simpleEntry.examples])].slice(0,5);
+      const entry=simpleEntry;
       if(!entry.phrases.length && prior.phrases?.length)entry.phrases=prior.phrases;
       renderResult(entry);
     } catch(error) {
