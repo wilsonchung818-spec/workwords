@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="manifest" href="./manifest.json">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./styles.css?v=1">
+  <link rel="stylesheet" href="./styles.css?v=2">
   <title>WorkWords · Business English Dictionary</title>
 </head>
 <body>
@@ -18,6 +18,7 @@
     <button id="install" class="install" hidden>Install app</button>
   </header>
   <main>
+   <div id="search-view" class="app-view active-view">
     <section class="search-area">
       <p class="eyebrow">A practical dictionary for work</p>
       <h1>Find the words<br>behind your work.</h1>
@@ -25,20 +26,28 @@
         <label class="sr-only" for="query">Search an English word</label>
         <input id="query" name="query" type="search" placeholder="Search a business word…" autocomplete="off" required>
         <button aria-label="Search" type="submit">Search <span aria-hidden="true">→</span></button>
+        <ul id="suggestions" class="suggestions" role="listbox" aria-label="Word suggestions" hidden></ul>
       </form>
       <p class="search-note">English definition first · clear examples · useful phrases</p>
     </section>
     <section id="result" class="result" aria-live="polite"></section>
-    <section id="saved" class="saved-section">
+   </div>
+   <section id="saved-view" class="saved-section app-view">
       <div class="section-heading"><div><p class="eyebrow">Your collection</p><h2>My wordbook <span id="word-count">0</span></h2></div><button id="export" class="outline-button" disabled>Export</button></div>
       <div id="saved-list" class="saved-list"><p class="empty">Your saved words will appear here.</p></div>
       <div id="print-sheet" class="print-sheet"></div>
     </section>
+   <section id="review-view" class="review-section app-view">
+     <p class="eyebrow">Spaced review</p><h1>Review your words</h1>
+     <p class="review-intro">Words are scheduled at 1, 2, 4, 7, 15, then 30-day intervals. Mark how well you remember each one to set its next date.</p>
+     <div class="review-summary"><strong id="due-count">0</strong><span>words due today</span></div>
+     <div id="review-list" class="review-list"></div>
+     <details class="schedule-help"><summary>How the review schedule works</summary><p>New words come back tomorrow. Each successful review moves the word to a longer interval. If it is hard to remember, it comes back tomorrow.</p></details>
+   </section>
   </main>
-  <nav class="bottom-nav" aria-label="Main navigation"><a class="active" href="#top" data-view="search">⌕ <span>Search</span></a><a href="#saved" data-view="saved">▤ <span>My Words</span></a><button id="reminder">◷ <span>Weekly review</span></button></nav>
-  <dialog id="reminder-dialog"><form method="dialog" class="dialog-content"><button class="dialog-close" aria-label="Close">×</button><p class="eyebrow">Keep your words active</p><h2>Weekly reminder</h2><p>Choose a day to review your saved wordbook on this phone.</p><label for="reminder-day">Review day</label><select id="reminder-day"><option>Monday</option><option>Tuesday</option><option>Wednesday</option><option>Thursday</option><option>Friday</option><option>Saturday</option><option>Sunday</option></select><button id="save-reminder" class="primary-button" value="save">Save reminder</button><small>Reminder preference is saved locally. Browser notifications require permission.</small></form></dialog>
+  <nav class="bottom-nav" aria-label="Main navigation"><button class="active" data-view="search">⌕ <span>Search</span></button><button data-view="saved">▤ <span>My Words</span></button><button data-view="review">◷ <span>Review</span></button></nav>
   <dialog id="export-dialog"><form method="dialog" class="dialog-content"><button class="dialog-close" aria-label="Close">×</button><p class="eyebrow">Take your learning with you</p><h2>Export wordbook</h2><p>Markdown is structured for AI agents. A4 PDF is ready to print or read.</p><button id="export-md" class="primary-button" value="md">Download Markdown (.md)</button><button id="export-pdf" class="outline-button" value="pdf">Print / save as A4 PDF</button></form></dialog>
   <footer>WorkWords · Words you meet at work, ready to learn.</footer>
-  <script src="./app.js?v=1"></script>
+  <script src="./app.js?v=2"></script>
 </body>
 </html>

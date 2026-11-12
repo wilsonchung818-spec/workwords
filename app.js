@@ -10,6 +10,44 @@
   let words = loadWords();
   let current = null;
   let installPrompt = null;
+  let suggestionTimer = null;
+  let suggestionRequest = 0;
+  let selectedSuggestion = -1;
+  const reviewIntervals = [1, 2, 4, 7, 15, 30];
+  const simpleMeanings = {
+    alignment: 'Agreement. People understand the goal in the same way.',
+    scope: 'The work a project includes.',
+    stakeholder: 'A person or group affected by a project.',
+    mitigate: 'To make a risk or problem smaller.',
+    blocker: 'A problem that stops work from moving forward.',
+    deliverable: 'A piece of work the project must finish.',
+    dependency: 'Work that must happen before other work can continue.',
+    estimate: 'A best guess about time, cost, or effort.',
+    requirement: 'Something a product or service must do.',
+    backlog: 'A list of work the team may do.',
+    facilitate: 'To help a group talk and work together.',
+    clarify: 'To make something easier to understand.',
+    resolve: 'To find an answer to a problem.',
+    escalate: 'To tell a person with more authority about a problem.',
+    impact: 'A change or result caused by something.',
+    capacity: 'How much work a person or team can do.',
+    priority: 'How important something is.',
+    outcome: 'The result of an action or plan.',
+    approval: 'Permission to do something.',
+    feedback: 'Ideas or comments that can help improve something.',
+    decision: 'A choice made after thinking about options.',
+    evidence: 'Facts that show something is true.',
+    assumption: 'An idea people accept as true before they check it.'
+  };
+  const examplesByWord = {
+    alignment: ['Let’s get alignment on the launch plan.', 'We need alignment across product and operations.'],
+    scope: ['Let’s confirm the scope before we estimate the work.', 'That request is outside the agreed scope.'],
+    stakeholder: ['We shared the update with every key stakeholder.', 'The stakeholder asked for a clear delivery date.'],
+    mitigate: ['We added a second check to mitigate the risk.', 'This step will mitigate the impact of the delay.'],
+    blocker: ['The vendor delay is our main blocker.', 'Can you help us remove this blocker today?'],
+    requirement: ['This requirement needs approval from the business.', 'We tested the requirement with users.'],
+    dependency: ['The team is tracking a dependency on the data group.', 'This dependency may affect the release date.']
+  };
   const collocations = {
     alignment: [['alignment on', 'agreement about a topic'], ['alignment with', 'agreement with a goal or strategy'], ['get / reach alignment', 'come to a shared understanding']],
     scope: [['project scope', 'the work included in a project'], ['in scope / out of scope', 'included / not included in the agreed work'], ['scope of work', 'the work and services agreed']],
@@ -61,9 +99,32 @@
   function renderResult(entry) {
     current = entry;
     const saved = words.some(item => item.word.toLowerCase() === entry.word.toLowerCase());
-    result.innerHTML = `<div class="word-head"><div><h2 class="word-title">${escapeHtml(entry.word)}</h2><div class="pronunciation">${escapeHtml(entry.phonetic || '')}</div><span class="pos">${escapeHtml(entry.pos || 'word')}</span></div><button class="save-button ${saved?'saved':''}" id="save-word">${saved?'✓ Saved to My Words':'＋ Add to My Words'}</button></div><p class="definition">${escapeHtml(entry.definition)}</p><div class="language-row"><span>Explanation language</span><div class="language-toggle"><button class="active" data-language="en">English</button><button data-language="zh">中文</button></div></div><div id="translation" class="translation" hidden></div><section class="content-section"><h3>Natural examples</h3><ul class="examples">${(entry.examples.length?entry.examples:['No example sentences were supplied by the dictionary for this entry.']).map(line=>`<li>${escapeHtml(line)}</li>`).join('')}</ul></section><section class="content-section"><h3>Common prepositions & phrases</h3>${entry.phrases.length?`<ul class="phrases">${entry.phrases.map(([phrase,note])=>`<li>${escapeHtml(phrase)}<small>${escapeHtml(note)}</small></li>`).join('')}</ul>`:'<p class="message">We do not have a reliable collocation entry for this word yet. The definition and examples are still available; saved words work offline.</p>'}</section>`;
+    const audio=entry.audioUrl?`<audio id="word-audio" preload="none" src="${escapeHtml(entry.audioUrl)}"></audio>`:'';
+    const senses=(entry.meanings||[]).map(group=>`<div class="sense-group"><h4>${escapeHtml(group.pos)}</h4><ol>${group.definitions.map(def=>`<li>${escapeHtml(def)}</li>`).join('')}</ol></div>`).join('');
+    result.innerHTML = `<div class="word-head"><div><h2 class="word-title">${escapeHtml(entry.word)}</h2><div class="pronunciation">${escapeHtml(entry.phonetic || '')}</div><span class="pos">${escapeHtml((entry.partsOfSpeech||[entry.pos||'word']).join(' · '))}</span></div><div class="word-actions"><button class="listen-button" id="listen-word" aria-label="Listen to ${escapeHtml(entry.word)}">🔊 <span>Listen</span></button><button class="save-button ${saved?'saved':''}" id="save-word">${saved?'✓ Saved':'＋ Save word'}</button></div></div>${audio}<section class="content-section simple-definition"><h3>Simple English</h3><p class="definition">${escapeHtml(entry.definition)}</p></section><div class="language-row"><span>Explanation language</span><div class="language-toggle"><button class="active" data-language="en">English</button><button data-language="zh">中文</button></div></div><div id="translation" class="translation" hidden></div><section class="content-section"><h3>All meanings by part of speech</h3>${senses||`<p>${escapeHtml(entry.definition)}</p>`}</section><section class="content-section"><h3>Natural examples</h3>${entry.examples?.length?`<ul class="examples">${entry.examples.map(line=>`<li>${escapeHtml(line)}</li>`).join('')}</ul>`:'<p class="message">No examples are available for this word yet.</p>'}</section><section class="content-section"><h3>Common prepositions & phrases</h3>${entry.phrases.length?`<ul class="phrases">${entry.phrases.map(([phrase,note])=>`<li>${escapeHtml(phrase)}<small>${escapeHtml(note)}</small></li>`).join('')}</ul>`:'<p class="message">No verified phrase combinations are listed for this word yet.</p>'}</section>`;
     document.querySelector('#save-word').addEventListener('click', saveCurrent);
+    document.querySelector('#listen-word').addEventListener('click',()=>speakEntry(entry));
     result.querySelectorAll('[data-language]').forEach(button=>button.addEventListener('click',()=>toggleLanguage(button.dataset.language,entry)));
+  }
+  function speakEntry(entry){
+    const femaleVoice=('speechSynthesis'in window?speechSynthesis.getVoices():[]).find(voice=>/^en([-_]|$)/i.test(voice.lang)&&/(female|aria|jenny|samantha|zira|susan|hazel|libby|sonia|ava|karen|sara|michelle|june|google us english)/i.test(voice.name));
+    if(femaleVoice){speakWithDeviceVoice(entry,femaleVoice);return;}
+    const audio=document.querySelector('#word-audio');
+    if(audio){audio.currentTime=0;audio.play().catch(()=>speakWithDeviceVoice(entry));return;}
+    speakWithDeviceVoice(entry);
+  }
+  function speakWithDeviceVoice(entry,preferredVoice=null){
+    if(!('speechSynthesis'in window)){showToast('Audio playback is not available on this device.');return;}
+    const utterance=new SpeechSynthesisUtterance(entry.word);
+    const voices=speechSynthesis.getVoices();
+    const female=voices.find(voice=>/^en([-_]|$)/i.test(voice.lang)&&/(female|aria|jenny|samantha|zira|susan|hazel|libby|sonia|ava|karen|sara|michelle|june)/i.test(voice.name));
+    utterance.voice=preferredVoice||female||voices.find(voice=>/^en-US/i.test(voice.lang))||voices.find(voice=>/^en/i.test(voice.lang))||null;
+    utterance.lang=utterance.voice?.lang||'en-US';
+    utterance.rate=.88;utterance.pitch=1.08;speechSynthesis.cancel();speechSynthesis.speak(utterance);
+  }
+  function showToast(message){let toast=document.querySelector('#toast');if(!toast){toast=document.createElement('div');toast.id='toast';toast.className='toast';document.body.append(toast);}toast.textContent=message;toast.classList.add('visible');setTimeout(()=>toast.classList.remove('visible'),2200);}
+  function plainDefinition(definition=''){
+    return definition.replace(/\([^)]*\)/g,'').replace(/\bthe act of\b/gi,'to').replace(/\bthe process of\b/gi,'when people').replace(/\bpertaining to\b/gi,'about').replace(/\brelating to\b/gi,'about').replace(/\bin order to\b/gi,'to').replace(/\butilize\b/gi,'use').replace(/\bcommence\b/gi,'start').replace(/\bendeavor\b/gi,'try').replace(/\bfacilitate\b/gi,'help').replace(/\bapproximately\b/gi,'about').replace(/\bobtain\b/gi,'get').replace(/\bsufficient\b/gi,'enough').replace(/\bsubsequent\b/gi,'next').replace(/\bprior to\b/gi,'before').replace(/\bregarding\b/gi,'about').replace(/\bindividuals\b/gi,'people').replace(/\bcharacterized by\b/gi,'that has').trim();
   }
   async function toggleLanguage(language, entry) {
     result.querySelectorAll('[data-language]').forEach(button=>button.classList.toggle('active',button.dataset.language===language));
@@ -84,8 +145,10 @@
       const [raw]=await response.json(); const meanings=raw.meanings||[];
       const definitions=meanings.flatMap(item=>(item.definitions||[]).map(def=>({pos:item.partOfSpeech,definition:def.definition,example:def.example}))).filter(item=>item.definition);
       const prior=local||{};
-      const entry={word:raw.word||clean,phonetic:raw.phonetic||raw.phonetics?.find(item=>item.text)?.text||'',pos:definitions[0]?.pos||meanings[0]?.partOfSpeech||'word',definition:definitions[0]?.definition||'Definition unavailable.',examples:[...new Set(definitions.map(item=>item.example).filter(Boolean))].slice(0,3),phrases:phraseList(clean),savedAt:prior.savedAt||'',note:prior.note||''};
-      if(entry.examples.length<2)entry.examples=exampleFallback(entry);
+      const simple=[...definitions].sort((a,b)=>a.definition.length-b.definition.length)[0]?.definition||'Definition unavailable.';
+      const audio=raw.phonetics?.find(item=>item.audio&&/^https?:/.test(item.audio))?.audio||'';
+      const entry={word:raw.word||clean,phonetic:raw.phonetic||raw.phonetics?.find(item=>item.text)?.text||'',pos:definitions[0]?.pos||meanings[0]?.partOfSpeech||'word',partsOfSpeech:[...new Set(meanings.map(item=>item.partOfSpeech).filter(Boolean))],meanings:meanings.map(item=>({pos:item.partOfSpeech||'word',definitions:[...new Set((item.definitions||[]).map(def=>def.definition).filter(Boolean))]})).filter(item=>item.definitions.length),definition:simpleMeanings[clean]||plainDefinition(simple),examples:[...new Set(definitions.map(item=>item.example).filter(Boolean))].slice(0,3),phrases:phraseList(clean),audioUrl:audio,savedAt:prior.savedAt||'',reviewStage:prior.reviewStage??0,nextReviewAt:prior.nextReviewAt||'',reviewCount:prior.reviewCount||0,lastReviewedAt:prior.lastReviewedAt||''};
+      if(entry.examples.length<2){const curated=examplesByWord[clean]||[];entry.examples=[...new Set([...entry.examples,...curated])].slice(0,3);}
       if(!entry.phrases.length && prior.phrases?.length)entry.phrases=prior.phrases;
       renderResult(entry);
     } catch(error) {
@@ -93,23 +156,47 @@
       result.innerHTML=`<p class="message error">${escapeHtml(error.message||'Could not find that word. Please try again.')}</p>`;
     }
   }
-  function exampleFallback(entry){const word=entry.word;const pos=entry.pos.toLowerCase();const lines=pos.includes('noun')?[`We need to discuss ${word} before the project meeting.`,`The team shared an update about ${word}.`]:pos.includes('adjective')?[`We need a more ${word} approach to this project.`,`The plan is ${word} enough to share with the team.`]:pos.includes('adverb')?[`The team handled the change ${word}.`,`Please explain the decision ${word}.`]:[`We should ${word} the plan before the review.`,`The team will ${word} this with the project owner.`];return [...new Set([...entry.examples,...lines])].slice(0,3);}
-  function saveCurrent(){if(!current)return;const index=words.findIndex(item=>item.word.toLowerCase()===current.word.toLowerCase());if(index>=0)words[index]={...words[index],...current};else words.unshift({...current,savedAt:new Date().toISOString()});persist();renderResult(current);}
-  function renderSaved(){count.textContent=words.length;exportButton.disabled=!words.length;if(!words.length){savedList.innerHTML='<p class="empty">Your saved words will appear here.</p>';return;}savedList.innerHTML=words.map((item,index)=>`<div class="saved-row"><div><span class="saved-word">${escapeHtml(item.word)}</span><span class="saved-pos">${escapeHtml(item.pos||'word')}</span></div><span class="saved-def">${escapeHtml(item.definition)}</span><button aria-label="Remove ${escapeHtml(item.word)}" data-remove="${index}">×</button></div>`).join('');savedList.querySelectorAll('[data-remove]').forEach(button=>button.addEventListener('click',()=>{words.splice(Number(button.dataset.remove),1);persist();}));savedList.querySelectorAll('.saved-word').forEach(label=>label.addEventListener('click',()=>lookup(label.textContent)));}
-  function wordbookMarkdown(){const date=new Date().toISOString().slice(0,10);return `# WorkWords — Personal Business English Wordbook\n\nExported: ${date}\nWords: ${words.length}\n\n${words.map(item=>`## ${item.word}\n\n- Part of speech: ${item.pos||'Not specified'}\n- Pronunciation: ${item.phonetic||'Not available'}\n- English definition: ${item.definition}\n${item.note?`- My note: ${item.note}\n`:''}\n### Natural examples\n${(item.examples||[]).map(line=>`- ${line}`).join('\n')||'- No examples saved.'}\n\n### Common prepositions and phrases\n${(item.phrases||[]).map(([phrase,note])=>`- **${phrase}** — ${note}`).join('\n')||'- No curated collocations saved.'}\n`).join('\n---\n\n')}`;}
+  function saveCurrent(){if(!current)return;const index=words.findIndex(item=>item.word.toLowerCase()===current.word.toLowerCase());if(index>=0)words[index]={...words[index],...current};else words.unshift({...current,savedAt:new Date().toISOString(),reviewStage:0,nextReviewAt:addDays(new Date(),1).toISOString().slice(0,10),reviewCount:0});persist();renderResult(current);showToast('Saved. First review is due tomorrow.');}
+  function addDays(date,days){const next=new Date(date);next.setDate(next.getDate()+days);return next;}
+  function dateKey(date){const local=new Date(date.getTime()-date.getTimezoneOffset()*60000);return local.toISOString().slice(0,10);}
+  function renderSaved(){count.textContent=words.length;exportButton.disabled=!words.length;if(!words.length){savedList.innerHTML='<p class="empty">You have not saved any words yet. Use Search to add one.</p>';return;}savedList.innerHTML=words.map((item,index)=>`<div class="saved-row"><button class="saved-word-button" data-open="${index}"><span class="saved-word">${escapeHtml(item.word)}</span><span class="saved-pos">${escapeHtml((item.partsOfSpeech||[item.pos||'word']).join(' · '))}</span></button><span class="saved-def">${escapeHtml(item.definition)}<small>${item.nextReviewAt?`Next review ${escapeHtml(item.nextReviewAt)}`:'Review due tomorrow'} · <button class="schedule-now" data-schedule="${index}">Review today</button></small></span><button aria-label="Remove ${escapeHtml(item.word)}" data-remove="${index}">×</button></div>`).join('');savedList.querySelectorAll('[data-remove]').forEach(button=>button.addEventListener('click',()=>{words.splice(Number(button.dataset.remove),1);persist();}));savedList.querySelectorAll('[data-open]').forEach(button=>button.addEventListener('click',()=>{const item=words[Number(button.dataset.open)];switchView('search');renderResult(item);query.value=item.word;}));savedList.querySelectorAll('[data-schedule]').forEach(button=>button.addEventListener('click',()=>{words[Number(button.dataset.schedule)].nextReviewAt=dateKey(new Date());persist();showToast('Added to today’s review.');}));renderReview();}
+  function renderReview(){
+    const today=dateKey(new Date());
+    const due=words.filter(item=>!item.nextReviewAt||item.nextReviewAt<=today).sort((a,b)=>(a.nextReviewAt||'').localeCompare(b.nextReviewAt||''));
+    document.querySelector('#due-count').textContent=due.length;
+    const list=document.querySelector('#review-list');
+    if(!due.length){const next=words.filter(item=>item.nextReviewAt).sort((a,b)=>a.nextReviewAt.localeCompare(b.nextReviewAt)).slice(0,5);list.innerHTML=`<p class="empty">You are all caught up for today.</p>${next.length?`<h3>Coming up</h3>${next.map(item=>`<div class="upcoming-row"><b>${escapeHtml(item.word)}</b><span>${escapeHtml(item.nextReviewAt)}</span></div>`).join('')}`:''}`;return;}
+    list.innerHTML=due.map(item=>`<article class="review-word"><div class="review-word-head"><div><h2>${escapeHtml(item.word)}</h2></div><button class="listen-button" data-review-audio="${escapeHtml(item.word)}" aria-label="Listen to ${escapeHtml(item.word)}">🔊</button></div><div class="review-answer" hidden><span>${escapeHtml((item.partsOfSpeech||[item.pos||'word']).join(' · '))}</span><p class="review-definition">${escapeHtml(item.definition)}</p><p>${escapeHtml(item.examples?.[0]||'')}</p><div class="review-actions"><button data-review-hard="${escapeHtml(item.word)}">Hard · tomorrow</button><button data-review-good="${escapeHtml(item.word)}">I remembered</button></div></div><button class="reveal-button" data-reveal="${escapeHtml(item.word)}">Show answer</button></article>`).join('');
+    list.querySelectorAll('[data-reveal]').forEach(button=>button.addEventListener('click',()=>{button.hidden=true;button.closest('.review-word').querySelector('.review-answer').hidden=false;}));
+    list.querySelectorAll('[data-review-hard],[data-review-good]').forEach(button=>button.addEventListener('click',()=>reviewWord(button.dataset.reviewGood||button.dataset.reviewHard,button.hasAttribute('data-review-good'))));
+    list.querySelectorAll('[data-review-audio]').forEach(button=>button.addEventListener('click',()=>{const item=words.find(word=>word.word===button.dataset.reviewAudio);if(item)speakEntry(item);}));
+  }
+  function reviewWord(word,remembered){const item=words.find(entry=>entry.word===word);if(!item)return;const stage=Number(item.reviewStage||0);const days=remembered?reviewIntervals[Math.min(stage+1,reviewIntervals.length-1)]:1;if(remembered)item.reviewStage=Math.min(stage+1,reviewIntervals.length-1);item.reviewCount=Number(item.reviewCount||0)+1;item.lastReviewedAt=dateKey(new Date());item.nextReviewAt=dateKey(addDays(new Date(),days));persist();showToast(remembered?`Next review in ${days} day${days===1?'':'s'}.`:'Added back for tomorrow.');}
+  async function updateSuggestions(){
+    const typed=cleanWord(query.value);const box=document.querySelector('#suggestions');selectedSuggestion=-1;
+    if(typed.length<2){box.hidden=true;box.innerHTML='';return;}
+    const request=++suggestionRequest;box.innerHTML='<li class="suggestion-status">Finding similar words…</li>';box.hidden=false;
+    try{const response=await fetch(`https://api.datamuse.com/words?sp=${encodeURIComponent(typed+'*')}&max=7&md=d`);if(!response.ok)throw new Error('suggestions unavailable');let matches=await response.json();if(!matches.length){const near=await fetch(`https://api.datamuse.com/words?sp=${encodeURIComponent(typed)}&max=5&md=d`);matches=near.ok?await near.json():[];}if(request!==suggestionRequest)return;const unique=[...new Set(matches.map(item=>item.word).filter(word=>word&&/^[a-z -]+$/i.test(word)))].slice(0,7);box.innerHTML=unique.length?unique.map((word,index)=>`<li><button type="button" role="option" aria-selected="false" data-suggestion="${escapeHtml(word)}"><b>${escapeHtml(word)}</b><span>${escapeHtml(matches.find(match=>match.word===word)?.tags?.find(tag=>['n','v','adj','adv'].includes(tag))||'English word')}</span></button></li>`).join(''):'<li class="suggestion-status">No close matches. Press Search to look it up.</li>';box.hidden=!unique.length;box.querySelectorAll('[data-suggestion]').forEach(button=>button.addEventListener('click',()=>{const selected=button.dataset.suggestion;box.hidden=true;lookup(selected);}));}
+    catch{if(request===suggestionRequest){box.innerHTML='<li class="suggestion-status">Suggestions need an internet connection.</li>';box.hidden=false;}}
+  }
+  function moveSuggestion(direction){const options=[...document.querySelectorAll('#suggestions [data-suggestion]')];if(!options.length)return;selectedSuggestion=Math.max(0,Math.min(options.length-1,selectedSuggestion+direction));options.forEach((option,index)=>option.setAttribute('aria-selected',String(index===selectedSuggestion)));}
+  function chooseSuggestion(){const options=[...document.querySelectorAll('#suggestions [data-suggestion]')];if(selectedSuggestion<0||!options[selectedSuggestion])return false;const selected=options[selectedSuggestion].dataset.suggestion;document.querySelector('#suggestions').hidden=true;lookup(selected);return true;}
+  function switchView(view){document.querySelectorAll('.app-view').forEach(section=>section.classList.toggle('active-view',section.id===`${view}-view`));document.querySelectorAll('.bottom-nav [data-view]').forEach(button=>button.classList.toggle('active',button.dataset.view===view));if(view==='saved')renderSaved();if(view==='review')renderReview();}
+  function wordbookMarkdown(){const date=new Date().toISOString().slice(0,10);return `# WorkWords — Personal Business English Wordbook\n\nExported: ${date}\nWords: ${words.length}\n\n${words.map(item=>`## ${item.word}\n\n- Parts of speech: ${(item.partsOfSpeech||[item.pos||'Not specified']).join(', ')}\n- Pronunciation: ${item.phonetic||'Not available'}\n- Simple English: ${item.definition}\n- Next review: ${item.nextReviewAt||'Not scheduled'}\n\n### Meanings\n${(item.meanings||[]).map(group=>`#### ${group.pos}\n${group.definitions.map(def=>`- ${def}`).join('\n')}`).join('\n\n')||'- No additional meanings saved.'}\n\n### Natural examples\n${(item.examples||[]).map(line=>`- ${line}`).join('\n')||'- No examples saved.'}\n\n### Common prepositions and phrases\n${(item.phrases||[]).map(([phrase,note])=>`- **${phrase}** — ${note}`).join('\n')||'- No curated collocations saved.'}\n`).join('\n---\n\n')}`;}
   function exportMarkdown(){const blob=new Blob([wordbookMarkdown()],{type:'text/markdown;charset=utf-8'});download(blob,`workwords-${new Date().toISOString().slice(0,10)}.md`);}
   function download(blob,name){const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1000);}
-  function exportPdf(){const sheet=document.querySelector('#print-sheet');sheet.innerHTML=`<h1>WorkWords · Personal Business English Wordbook</h1><p>Exported ${new Date().toLocaleDateString()} · ${words.length} words</p>${words.map(item=>`<article><h2>${escapeHtml(item.word)} <small>${escapeHtml(item.pos||'word')} ${escapeHtml(item.phonetic||'')}</small></h2><p><b>English definition:</b> ${escapeHtml(item.definition)}</p><h3>Natural examples</h3><ul>${(item.examples||[]).map(line=>`<li>${escapeHtml(line)}</li>`).join('')}</ul><h3>Common prepositions and phrases</h3><ul>${(item.phrases||[]).map(([phrase,note])=>`<li><b>${escapeHtml(phrase)}</b> — ${escapeHtml(note)}</li>`).join('')||'<li>No curated collocations saved.</li>'}</ul></article>`).join('')}`;window.print();}
+  function exportPdf(){const sheet=document.querySelector('#print-sheet');sheet.innerHTML=`<h1>WorkWords · Personal Business English Wordbook</h1><p>Exported ${new Date().toLocaleDateString()} · ${words.length} words</p>${words.map(item=>`<article><h2>${escapeHtml(item.word)} <small>${escapeHtml((item.partsOfSpeech||[item.pos||'word']).join(', '))} ${escapeHtml(item.phonetic||'')}</small></h2><p><b>Simple English:</b> ${escapeHtml(item.definition)}</p>${(item.meanings||[]).map(group=>`<h3>${escapeHtml(group.pos)}</h3><ul>${group.definitions.map(def=>`<li>${escapeHtml(def)}</li>`).join('')}</ul>`).join('')}<h3>Natural examples</h3><ul>${(item.examples||[]).map(line=>`<li>${escapeHtml(line)}</li>`).join('')}</ul><h3>Common prepositions and phrases</h3><ul>${(item.phrases||[]).map(([phrase,note])=>`<li><b>${escapeHtml(phrase)}</b> — ${escapeHtml(note)}</li>`).join('')||'<li>No curated collocations saved.</li>'}</ul><p><b>Next review:</b> ${escapeHtml(item.nextReviewAt||'Not scheduled')}</p></article>`).join('')}`;window.print();}
   exportButton.addEventListener('click',()=>document.querySelector('#export-dialog').showModal());
   document.querySelector('#export-md').addEventListener('click',()=>exportMarkdown());
   document.querySelector('#export-pdf').addEventListener('click',()=>exportPdf());
-  form.addEventListener('submit',event=>{event.preventDefault();lookup(query.value);});
-  document.querySelector('#reminder').addEventListener('click',()=>{const dialog=document.querySelector('#reminder-dialog');document.querySelector('#reminder-day').value=localStorage.getItem(`${STORE}:reminder`)||'Sunday';dialog.showModal();});
-  document.querySelector('#reminder-dialog').addEventListener('close',()=>{if(document.querySelector('#reminder-day').value)localStorage.setItem(`${STORE}:reminder`,document.querySelector('#reminder-day').value);});
-  document.querySelector('#save-reminder').addEventListener('click',async event=>{if('Notification'in window&&Notification.permission==='default'){try{await Notification.requestPermission();}catch{}}event.preventDefault();document.querySelector('#reminder-dialog').close();});
-  document.querySelectorAll('.bottom-nav a').forEach(link=>link.addEventListener('click',()=>{document.querySelectorAll('.bottom-nav a').forEach(item=>item.classList.remove('active'));link.classList.add('active');}));
+  form.addEventListener('submit',event=>{event.preventDefault();if(!chooseSuggestion())lookup(query.value);});
+  query.addEventListener('input',()=>{clearTimeout(suggestionTimer);suggestionTimer=setTimeout(updateSuggestions,220);});
+  query.addEventListener('keydown',event=>{if(event.key==='ArrowDown'){event.preventDefault();moveSuggestion(1);}else if(event.key==='ArrowUp'){event.preventDefault();moveSuggestion(-1);}else if(event.key==='Enter'&&!document.querySelector('#suggestions').hidden&&selectedSuggestion>=0){event.preventDefault();chooseSuggestion();}else if(event.key==='Escape'){document.querySelector('#suggestions').hidden=true;}});
+  document.addEventListener('click',event=>{if(!form.contains(event.target))document.querySelector('#suggestions').hidden=true;});
+  document.querySelectorAll('.bottom-nav [data-view]').forEach(button=>button.addEventListener('click',()=>switchView(button.dataset.view)));
   window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();installPrompt=event;document.querySelector('#install').hidden=false;});
   document.querySelector('#install').addEventListener('click',async()=>{if(!installPrompt)return;installPrompt.prompt();await installPrompt.userChoice;installPrompt=null;document.querySelector('#install').hidden=true;});
   if('serviceWorker'in navigator)navigator.serviceWorker.register('./service-worker.js').catch(()=>{});
   renderSaved();
+  renderReview();
 })();
